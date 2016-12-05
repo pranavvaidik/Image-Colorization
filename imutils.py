@@ -10,20 +10,57 @@ def load_data():
 	#imagePATH = PATH + image_locs[1][1]
 	for i in range(len(image_locs)):
 		imagePath = PATH + image_locs[i][1]
-		#print imagePath		
-		image = cv2.imread(imagePath)
+		#print imagePath
+		features, L, a, b = extract_features(imagePath)
+		#image = cv2.imread(imagePath)
 		#print image
 		cv2.imshow("image",image)
 		cv2.waitKey(100)
 	return imagePath #will be returning the training and testing sets after this
 
 
-def segment_image(image):
-	segments = slic(img, n_segments=N_SEGMENTS, compactness=10, sigma=1)
-	return segments
+def segment_image(path):
+	gray_image = cv2.cvtColor(image,cv2.COLOR_BGR2GRAY)
+	Lab  = cv2.cvtColor(image,cv2.COLOR_BGR2LAB)
+	segments = slic(gray_image, n_segments=N_SEGMENTS, compactness=0.1, sigma=1)
+	return gray_image, Lab, segments
 
-def get_subsquares(image):
-	return
+def extract_features(path):
+	#image = cv2.imread(path)
+	#segments = slic(gray_image, n_segments=N_SEGMENTS, compactness=10, sigma=1)
+	gray_image, Lab , segments = segment_image(path)
+	n_segments = segments.max() + 1
 
-def extract_features(paths):
-	return
+	#compute centroids
+	point_count = np.zeros(n_segments)
+	centroids = np.zeros((n_segments, 2))
+
+	for (i,j), value in np.ndenumerate(segments):
+        point_count[value] += 1
+        centroids[value][0] += i
+        centroids[value][1] += j
+	L[value] += Lab[i][j][0]        
+	a[value] += Lab[i][j][1]
+        b[value] += Lab[i][j][2]
+
+	for k in range(n_segments):
+        centroids[k] /= point_count[k]
+	L[k] /= point_count[k]
+	a[k] /= point_count[k]
+	b[k] /= point_count[k]
+
+	subsquares = np.zeros((n_segments, SQUARE_SIZE * SQUARE_SIZE))
+	for k in range(n_segments):
+        	# Check that the square lies completely within the image
+	        top = max(int(centroids[k][0]), 0)
+        	if top + SQUARE_SIZE >= image.shape[0]:
+            		top = image.shape[0] - 1 - SQUARE_SIZE
+        		left = max(int(centroids[k][1]), 0)
+        	if left + SQUARE_SIZE >= image.shape[1]:
+            		left = image.shape[1] - 1 - SQUARE_SIZE
+        	for i in range(0, SQUARE_SIZE):
+            		for j in range(0, SQUARE_SIZE):
+                		subsquares[k][i*SQUARE_SIZE + j] = gray_image[i + top][j + left]
+        	subsquares[k] = np.fft.fft2(subsquares[k].reshape(SQUARE_SIZE, SQUARE_SIZE)).reshape(SQUARE_SIZE * SQUARE_SIZE)
+
+	return subsquares, L, a, b
