@@ -6,8 +6,6 @@ PATH = "CUB_200_2011/CUB_200_2011/images/"
 N_SEGMENTS = 250
 SQUARE_SIZE = 10
 
-#Defining constants for Training the datasets
-
-
-
-# Defining constants for Testing
+#Constants for training the SVR
+C = 0.125
+SVR_EPSILON = 0.0625
