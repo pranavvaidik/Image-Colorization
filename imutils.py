@@ -21,10 +21,31 @@ def load_training_data():
 		train_b = np.concatenate((train_b, V), axis=0)
 		#image = cv2.imread(imagePath)
 		#print image
-		cv2.imshow("image",image)
-		cv2.waitKey(100)
+		#cv2.imshow("image",image)
+		#cv2.waitKey(100)
 	return features, train_L, train_a, train_b #will be returning the training and testing sets after this
 
+def load_test_data:
+	image_locs = np.genfromtxt("images.txt",dtype = None)
+	#imagePATH = PATH + image_locs[1][1]
+	features = np.array([]).reshape(0, SQUARE_SIZE * SQUARE_SIZE)
+        test_L = np.array([])
+        test_a = np.array([])
+        test_b = np.array([])
+	for i in range(len(image_locs)):
+		imagePath = PATH + image_locs[i][1]
+		#print imagePath
+		subsquares, L, a, b = extract_features(imagePath)
+		features = np.concatenate((features, subsquares), axis=0)
+            	test_L = np.concatenate((test_L, U), axis=0)
+            	test_a = np.concatenate((test_a, V), axis=0)
+		test_b = np.concatenate((test_b, V), axis=0)
+		#image = cv2.imread(imagePath)
+		#print image
+		#cv2.imshow("image",image)
+		#cv2.waitKey(100)
+	return features, test_L, test_a, test_b #will be returning the training and testing sets after this
+	
 
 def segment_image(path):
 	gray_image = cv2.cvtColor(image,cv2.COLOR_BGR2GRAY)
