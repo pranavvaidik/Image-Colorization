@@ -4,19 +4,26 @@ from skimage.segmentation import slic, mark_boundaries
 from constants import *
 
 # this method takes the PATH to the folder as input and loads all the files in the folder into the dataset
-def load_data():
-	
+def load_training_data():
 	image_locs = np.genfromtxt("images.txt",dtype = None)
 	#imagePATH = PATH + image_locs[1][1]
+	features = np.array([]).reshape(0, SQUARE_SIZE * SQUARE_SIZE)
+        train_L = np.array([])
+        train_a = np.array([])
+        train_b = np.array([])
 	for i in range(len(image_locs)):
 		imagePath = PATH + image_locs[i][1]
 		#print imagePath
-		features, L, a, b = extract_features(imagePath)
+		subsquares, L, a, b = extract_features(imagePath)
+		features = np.concatenate((features, subsquares), axis=0)
+            	train_L = np.concatenate((train_L, U), axis=0)
+            	train_a = np.concatenate((train_a, V), axis=0)
+		train_b = np.concatenate((train_b, V), axis=0)
 		#image = cv2.imread(imagePath)
 		#print image
 		cv2.imshow("image",image)
 		cv2.waitKey(100)
-	return imagePath #will be returning the training and testing sets after this
+	return features, train_L, train_a, train_b #will be returning the training and testing sets after this
 
 
 def segment_image(path):
