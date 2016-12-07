@@ -16,7 +16,8 @@ def load_training_data():
 	train_V = np.array([])	
 
 	for i in range(len(image_locs)):
-		imagePath = PATH + image_locs[i][1]
+		#imagePath = PATH + image_locs[i][1]
+		imagePath = image_locs[i][1]
 		print "loading data from "+ imagePath + " ... "
 		#subsquares, L, a, b = extract_features(imagePath)
 		subsquares, Y,U,V = extract_features(imagePath)
@@ -61,6 +62,9 @@ def segment_image(path):
 	gray_image = cv2.cvtColor(image,cv2.COLOR_BGR2GRAY)
 	yuv  = cv2.cvtColor(image,cv2.COLOR_BGR2YUV)
 	segments = slic(gray_image, n_segments=N_SEGMENTS, compactness=0.1, sigma=1)
+	
+	test = cv2.cvtColor(yuv,cv2.COLOR_YUV2BGR)
+	cv2.imshow('test',test)
 	return gray_image, yuv, segments
 
 def extract_features(path):
@@ -82,6 +86,7 @@ def extract_features(path):
 		Y[value] += yuv[i][j][0]        
 		U[value] += yuv[i][j][1]
 		V[value] += yuv[i][j][2]
+		#print "Y is ", yuv[i][j][1], " U is :",yuv[i][j][2]
 
 	for k in range(n_segments):
 		centroids[k] /= point_count[k]
@@ -120,7 +125,9 @@ def predict_image(svr_Y, svr_U, svr_V, path):
     	predicted_V = np.zeros(n_segments)	
 	for k in range(n_segments):
 		predicted_Y[k] = svr_Y.predict(subsquares[k])
+
 		predicted_U[k] = svr_U.predict(subsquares[k])
+		
 		predicted_V[k] = svr_V.predict(subsquares[k])
 
 	# Apply MRF to smooth out colorings
@@ -140,7 +147,8 @@ def predict_image(svr_Y, svr_U, svr_V, path):
 	
 	predicted_image = cv2.cvtColor(merged,cv2.COLOR_YUV2BGR)
 	print "predicted"
-	cv2.imshow("Y",Y_image)
+	cv2.imshow("merged YUV",merged)
+	cv2.imshow("pred", predicted_image)
 
 	return predicted_image
 
