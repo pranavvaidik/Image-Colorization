@@ -4,7 +4,8 @@ from constants import *
 from sklearn.svm import SVR
 
 
-path = "TrainingData/1.jpg"
+#path = "Indigo_Bunting_0018_11883.jpg"
+path = "TrainingData/214000.jpg"
 #cv2.figure(2)
 img = cv2.imread(path)
 gray = cv2.cvtColor(img,cv2.COLOR_BGR2GRAY)
@@ -27,13 +28,18 @@ V_svr.fit(features,train_V)
 print "b trained"
 
 
-
-
-
-predicted_image = predict_image(Y_svr, U_svr, V_svr, path)
-
-
+test_image_locs = np.genfromtxt("test_images.txt",dtype = None)
+for i in range(len(test_image_locs)):
+	path = PATH+test_image_locs[i][1]
+	predicted_image = predict_image(Y_svr, U_svr, V_svr, path)
+	(R,G,B) = cv2.split(predicted_image)
+	I = cv2.merge([B,G,R])
+	cv2.imwrite("results/"+`i`+".jpg",I*255)
+	cv2.imshow("img",I)
+	
 cv2.waitKey(0)
+
+
 
 
 
