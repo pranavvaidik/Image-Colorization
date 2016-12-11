@@ -2,11 +2,32 @@ import cv2
 import numpy as np
 from skimage.segmentation import slic, mark_boundaries
 from constants import *
+from skimage.data import imread
+from skimage.util import img_as_float
+
+def retrieveRGB(img):
+    rgb = np.dot(img, RGB_FROM_YUV)
+    for (i, j, k), value in np.ndenumerate(rgb):
+        rgb[i][j][k] = clamp(rgb[i][j][k], 0, 1)
+    return rgb
+
+def retrieveYUV(img):
+    return np.dot(img, YUV_FROM_RGB)
+
+def clamp(val, low, high):
+    return max(min(val, high), low)
+
+def clampU(val):
+    return clamp(val, -U_MAX, U_MAX)
+
+def clampV(val):
+    return clamp(val, -V_MAX, U_MAX)
+
+
 
 # this method takes the PATH to the folder as input and loads all the files in the folder into the dataset
 def load_training_data():
 	image_locs = np.genfromtxt("images.txt",dtype = None)
-	#imagePATH = PATH + image_locs[1][1]
 	features = np.array([]).reshape(0, SQUARE_SIZE * SQUARE_SIZE)
         #train_L = np.array([])
         #train_a = np.array([])
@@ -16,8 +37,8 @@ def load_training_data():
 	train_V = np.array([])	
 
 	for i in range(len(image_locs)):
-		#imagePath = PATH + image_locs[i][1]
-		imagePath = image_locs[i][1]
+		imagePath = PATH + image_locs[i][1]
+		#imagePath = image_locs[i][1]
 		print "loading data from "+ imagePath + " ... "
 		#subsquares, L, a, b = extract_features(imagePath)
 		subsquares, Y,U,V = extract_features(imagePath)
@@ -36,8 +57,8 @@ def load_training_data():
 	return features, train_Y, train_U, train_V #will be returning the training and testing sets after this
 
 def load_test_data():
-	image_locs = np.genfromtxt("images.txt",dtype = None)
-	#imagePATH = PATH + image_locs[1][1]
+	#image_locs = np.genfromtxt("images.txt",dtype = None)
+	imagePATH = PATH + image_locs[1][1]
 	features = np.array([]).reshape(0, SQUARE_SIZE * SQUARE_SIZE)
         test_Y = np.array([])
         test_U = np.array([])
@@ -58,13 +79,14 @@ def load_test_data():
 	
 
 def segment_image(path):
-	image = cv2.imread(path)	
+	img = img_as_float(imread(path))
+	image = cv2.imread(path)
 	gray_image = cv2.cvtColor(image,cv2.COLOR_BGR2GRAY)
-	yuv  = cv2.cvtColor(image,cv2.COLOR_BGR2YUV)
+	gray_image = img_as_float(gray_image)
+	yuv  = retrieveYUV(img)#cv2.cvtColor(image,cv2.COLOR_BGR2YUV)
 	segments = slic(gray_image, n_segments=N_SEGMENTS, compactness=0.1, sigma=1)
 	
-	test = cv2.cvtColor(yuv,cv2.COLOR_YUV2BGR)
-	cv2.imshow('test',test)
+	
 	return gray_image, yuv, segments
 
 def extract_features(path):
@@ -111,7 +133,7 @@ def extract_features(path):
 	return np.abs(subsquares), Y,U,V
 
 def predict_image(svr_Y, svr_U, svr_V, path):
-	image = cv2.imread(path)	
+    	img = img_as_float(imread(path))
 	gray_image, yuv , segments = segment_image(path)
 	n_segments = segments.max() + 1
 	subsquares, Y,U,V = extract_features(path)
@@ -126,29 +148,105 @@ def predict_image(svr_Y, svr_U, svr_V, path):
 	for k in range(n_segments):
 		predicted_Y[k] = svr_Y.predict(subsquares[k])
 
-		predicted_U[k] = svr_U.predict(subsquares[k])
+		predicted_U[k] = clampU(svr_U.predict(subsquares[k]))
 		
-		predicted_V[k] = svr_V.predict(subsquares[k])
+		predicted_V[k] = clampU(svr_V.predict(subsquares[k]))
 
 	# Apply MRF to smooth out colorings
-#    	predicted_u, predicted_v = apply_mrf(predicted_u, predicted_v, segments, n_segments, img, subsquares)
+    	predicted_U, predicted_V = apply_mrf(predicted_U, predicted_V, segments, n_segments, img, subsquares)
 	
-	print "problem is here"
-
 	#image reconstruction	
 	for (i,j), value in np.ndenumerate(segments):
-		Y_image[i,j] = predicted_Y[value]
+		#Y_image[i,j] = predicted_Y[value]
 		
-		U_image[i,j] = predicted_U[value]
-		V_image[i,j] = predicted_V[value]
-    	#rgb = retrieveRGB(yuv)
-	Y_image = gray_image	
-	merged = cv2.merge([Y_image,U_image,V_image])
+		yuv[i][j][1] = predicted_U[value]
+		yuv[i][j][2] = predicted_V[value]
+    	predicted_image = retrieveRGB(yuv)
+	#Y_image = gray_image	
+	#merged = cv2.merge([Y_image,U_image,V_image])
 	
-	predicted_image = cv2.cvtColor(merged,cv2.COLOR_YUV2BGR)
+
+	print yuv[:,:,1]
+		
+	#predicted_image = cv2.cvtColor(merged,cv2.COLOR_YUV2BGR)
 	print "predicted"
-	cv2.imshow("merged YUV",merged)
 	cv2.imshow("pred", predicted_image)
 
 	return predicted_image
+
+
+
+
+def generate_adjacencies(segments, n_segments, img, subsquares):
+    adjacency_list = []
+    for i in range(n_segments):
+        adjacency_list.append(set())
+    for (i,j), value in np.ndenumerate(segments):
+        # Check vertical adjacency
+        if i < img.shape[0] - 1:
+            newValue = segments[i + 1][j]
+            if value != newValue and np.linalg.norm(subsquares[value] - subsquares[newValue]) < THRESHOLD:
+                adjacency_list[value].add(newValue)
+                adjacency_list[newValue].add(value)
+
+        # Check horizontal adjacency
+        if j < img.shape[1] - 1:
+            newValue = segments[i][j + 1]
+            if value != newValue and np.linalg.norm(subsquares[value] - subsquares[newValue]) < THRESHOLD:
+                adjacency_list[value].add(newValue)
+                adjacency_list[newValue].add(value)
+
+    return adjacency_list
+
+# Given the prior observed_u and observed_v, which are generated using the SVR,
+# represent the system as a Markov Random Field and optimize over it using
+# Iterated Conditional Modes. Return the prediction of the hidden U and V values
+# of the segments.
+# For now, we assume that the U and V channels behave independently.
+def apply_mrf(observed_u, observed_v, segments, n_segments, img, subsquares):
+    hidden_u = np.copy(observed_u)  # Initialize hidden U and V to the observed
+    hidden_v = np.copy(observed_v)
+
+    adjacency_list = generate_adjacencies(segments, n_segments, img, subsquares)
+
+    for iteration in range(ICM_ITERATIONS):
+        new_u = np.zeros(n_segments)
+        new_v = np.zeros(n_segments)
+
+        for k in range(n_segments):
+
+            u_potential = 100000
+            v_potential = 100000
+            u_min = -1
+            v_min = -1
+
+            # Compute conditional probability over all possibilities of U
+            for u in np.arange(-U_MAX, U_MAX, .001):
+                u_computed = (u - observed_u[k]) ** 2 / (2 * COVAR)
+                for adjacency in adjacency_list[k]:
+                    u_computed += WEIGHT_DIFF * ((u - hidden_u[adjacency]) ** 2)
+                if u_computed < u_potential:
+                    u_potential = u_computed
+                    u_min = u
+            new_u[k] = u_min
+
+            # Compute conditional probability over all possibilities of V
+            for v in np.arange(-V_MAX, V_MAX, .001):
+                v_computed = (v - observed_v[k]) ** 2 / (2 * COVAR)
+                for adjacency in adjacency_list[k]:
+                    v_computed += WEIGHT_DIFF * ((v - hidden_v[adjacency]) ** 2)
+                if v_computed < v_potential:
+                    v_potential = v_computed
+                    v_min = v
+            new_v[k] = v_min
+
+        u_diff = np.linalg.norm(hidden_u - new_u)
+        v_diff = np.linalg.norm(hidden_v - new_v)
+        hidden_u = new_u
+        hidden_v = new_v
+        if u_diff < ITER_EPSILON and v_diff < ITER_EPSILON:
+            break
+
+    return hidden_u, hidden_v
+
 
