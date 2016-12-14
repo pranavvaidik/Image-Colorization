@@ -35,10 +35,10 @@ def load_training_data():
 	train_Y = np.array([])
 	train_U = np.array([])
 	train_V = np.array([])	
-
+	
 	for i in range(len(image_locs)):
-		imagePath = PATH + image_locs[i][1]
-		#imagePath = image_locs[i][1]
+		#imagePath = PATH + image_locs[i][1]
+		imagePath = image_locs[i][1]
 		print "loading data from "+ imagePath + " ... "
 		#subsquares, L, a, b = extract_features(imagePath)
 		subsquares, Y,U,V = extract_features(imagePath)
@@ -86,7 +86,13 @@ def segment_image(path):
 	yuv  = retrieveYUV(img)#cv2.cvtColor(image,cv2.COLOR_BGR2YUV)
 	segments = slic(gray_image, n_segments=N_SEGMENTS, compactness=0.1, sigma=1)
 	
-	
+	##test
+	#(R,G,B) = cv2.split(retrieveRGB(yuv))
+	##
+	#cv2.imshow('testing',cv2.merge([B,G,R]))
+	#cv2.imshow('segments',255*segments)
+	#cv2.waitKey(0)	
+
 	return gray_image, yuv, segments
 
 def extract_features(path):
@@ -128,17 +134,21 @@ def extract_features(path):
         	for i in range(0, SQUARE_SIZE):
             		for j in range(0, SQUARE_SIZE):
                 		subsquares[k][i*SQUARE_SIZE + j] = gray_image[i + top][j + left]
-        	subsquares[k] = np.fft.fft2(subsquares[k].reshape(SQUARE_SIZE, SQUARE_SIZE)).reshape(SQUARE_SIZE * SQUARE_SIZE)
+        	#subsquares[k] = np.fft.fft2(subsquares[k].reshape(SQUARE_SIZE, SQUARE_SIZE)).reshape(SQUARE_SIZE * SQUARE_SIZE)
+		subsquares[k] = subsquares[k].reshape(SQUARE_SIZE * SQUARE_SIZE)
 
-	return np.abs(subsquares), Y,U,V
+	return subsquares, Y,U,V
 
-def predict_image(svr_Y, svr_U, svr_V, path):
+def predict_image(svr_Y, svr_U, svr_V, path,pca):
     	img = img_as_float(imread(path))
 	gray_image, yuv , segments = segment_image(path)
 	n_segments = segments.max() + 1
 	subsquares, Y,U,V = extract_features(path)
 	
-	Y_image = np.zeros_like(gray_image)
+	subsquares_pca = pca.transform(subsquares)
+	
+	Y_image = img_as_float(gray_image)#np.zeros_like(gray_image)
+	#Y_image = np.ones_like(gray_image)	
 	U_image = np.zeros_like(gray_image)
 	V_image = np.zeros_like(gray_image)
 	#prediction of LAB
@@ -146,31 +156,33 @@ def predict_image(svr_Y, svr_U, svr_V, path):
     	predicted_U = np.zeros(n_segments)
     	predicted_V = np.zeros(n_segments)	
 	for k in range(n_segments):
-		predicted_Y[k] = svr_Y.predict(subsquares[k])
+		#predicted_Y[k] = svr_Y.predict(subsquares[k])
 
-		predicted_U[k] = clampU(svr_U.predict(subsquares[k]))
-		
-		predicted_V[k] = clampU(svr_V.predict(subsquares[k]))
-
+		predicted_U[k] = clampU(svr_U.predict(subsquares_pca[k])*2)
+		#predicted_U[k] = svr_U.predict(subsquares[k])
+		predicted_V[k] = clampU(svr_V.predict(subsquares_pca[k])*2)
+		#predicted_V[k] = svr_V.predict(subsquares[k])
 	# Apply MRF to smooth out colorings
-    	predicted_U, predicted_V = apply_mrf(predicted_U, predicted_V, segments, n_segments, img, subsquares)
+    	predicted_U, predicted_V = apply_mrf(predicted_U, predicted_V, segments, n_segments, img, subsquares_pca)
 	
 	#image reconstruction	
 	for (i,j), value in np.ndenumerate(segments):
 		#Y_image[i,j] = predicted_Y[value]
-		
+		yuv[i][j][0] = Y_image[i][j]#predicted_Y[value]
 		yuv[i][j][1] = predicted_U[value]
 		yuv[i][j][2] = predicted_V[value]
     	predicted_image = retrieveRGB(yuv)
 	#Y_image = gray_image	
 	#merged = cv2.merge([Y_image,U_image,V_image])
 	
-
+	print 'Green channel'
 	print yuv[:,:,1]
-		
+	print 'Blue channel'
+	print yuv[:,:,2]
+	
 	#predicted_image = cv2.cvtColor(merged,cv2.COLOR_YUV2BGR)
 	print "predicted"
-	cv2.imshow("pred", predicted_image)
+	#cv2.imshow("pred", gray_image)
 
 	return predicted_image
 
