@@ -5,20 +5,20 @@ PATH = "CUB_200_2011/CUB_200_2011/images/"
 
 
 #Definfing constants for segmentation
-N_SEGMENTS = 250
+N_SEGMENTS = 500
 SQUARE_SIZE = 10
 
 #Constants for training the SVR
-C = 0.125
-SVR_EPSILON = 0.0625
+C = 0.5#0.125
+SVR_EPSILON = 0.0425
 
 
 # Constants for running ICM on the MRF
 ICM_ITERATIONS = 10
-ITER_EPSILON = .01
+ITER_EPSILON = 0.01
 COVAR = 0.25       # Covariance of predicted chrominance from SVR and actual covariance
 WEIGHT_DIFF = 2    # Relative importance of neighboring superpixels
-THRESHOLD = 25     # Threshold for comparing adjacent superpixels.
+THRESHOLD = 10     # Threshold for comparing adjacent superpixels.
                    # Setting a higher threshold reduces error, but causes the image to appear more uniform.
 
 
